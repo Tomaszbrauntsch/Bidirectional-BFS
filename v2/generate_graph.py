@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(
                 "and output the shortest path between src and dst as JSON."
 )
 parser.add_argument("--n",   type=int, default=50000, help="number of nodes")
-parser.add_argument("--p",   type=float, default=3/133333, help="edge probability")
+parser.add_argument("--p",   type=float, default=3/129000, help="edge probability")
 parser.add_argument("--src", type=int, default=0,      help="source node")
 parser.add_argument("--dst", type=int, default=None,   help="destination node")
 parser.add_argument("--out", type=str, default="50k.bin", help="file to write as")
