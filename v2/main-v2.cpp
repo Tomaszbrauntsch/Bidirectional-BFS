@@ -13,6 +13,7 @@ int main(int argc, char* argv[]){
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     
     int n = 6;
+    // 20 nodes in adjacent matrix todo
     vector<vector<int>> graph = {
         {0, 1, 0, 0, 1, 0},
         {1, 0, 1, 0, 1, 0},
