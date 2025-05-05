@@ -16,3 +16,7 @@ v2/mpi_bfs
 v2/mpi_bibfs_bitset
 100k.json
 100k.bin
+*.o
+mpi_bibfs
+mpi-and-cuda
+cuda-skeleton-with-pi
