@@ -1,4 +1,3 @@
-// bfs_cuda_bidir_fixed_debug.cu
 #include <cstdio>
 #include <vector>
 #include <algorithm>
