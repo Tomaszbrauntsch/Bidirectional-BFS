@@ -9,7 +9,7 @@ CXXFLAGS  := -std=c++11 -O3
 LDFLAGS   :=
 
 # Executable name
-TARGET    := second_try
+TARGET    := mpi_bibfs_bitset
 
 # Source and object files
 SRCS      := second_try.cpp
