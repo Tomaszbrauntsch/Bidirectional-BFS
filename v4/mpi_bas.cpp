@@ -122,13 +122,9 @@ int main(int argc, char* argv[]){
   }
 
   double t1 = MPI_Wtime();
-
-  // 6) On rank 0, print distance, time, and then reconstruct & print the actual path
   if (rank == 0) {
     std::cout << "Shortest path length = " << distance << "\n"
               << "[Time] MPI+CUDA BI‑BFS = " << (t1 - t0) << " s\n";
-
-    // Simple host BFS from src→dst to recover the path
     std::vector<int> parent(N, -1);
     std::queue<int> q;
     parent[src] = src;
@@ -147,7 +143,6 @@ int main(int argc, char* argv[]){
     if (parent[dst] == -1) {
       std::cout << "No path found (unexpected!)\n";
     } else {
-      // Reconstruct path by walking parent[] backwards
       std::vector<int> path;
       for (int u = dst; u != src; u = parent[u])
         path.push_back(u);
