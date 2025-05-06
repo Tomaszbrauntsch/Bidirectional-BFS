@@ -91,6 +91,11 @@ int main(int argc, char** argv) {
   fflush(stdout);
   MPI_Barrier(MPI_COMM_WORLD);
 
+  // —————— Start timing here ——————
+  MPI_Barrier(MPI_COMM_WORLD);
+  double t_start = MPI_Wtime();
+  // ——————————————————————————————
+
   bool global_hit = false;
   while (!global_hit) {
     unsigned char schg, tchg, inter;
@@ -125,8 +130,15 @@ int main(int argc, char** argv) {
     if (!schg && !tchg) break;
   }
 
+  // —————— Stop timing here ——————
+  MPI_Barrier(MPI_COMM_WORLD);
+  double t_end = MPI_Wtime();
+  // ——————————————————————————————
+
   if (rank == 0) {
     std::cout << "Running with " << size << " ranks\n";
+    std::cout << "  Search time: " << (t_end - t_start) << " seconds\n";
+
     int meet = -1;
     for (int i = 0; i < (int)h_vis_s.size(); i++){
       if (h_vis_s[i] && h_vis_t[i]){ meet = i; break; }
