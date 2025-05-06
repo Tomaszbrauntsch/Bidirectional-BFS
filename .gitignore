@@ -20,3 +20,5 @@ v2/mpi_bibfs_bitset
 mpi_bibfs
 mpi-and-cuda
 cuda-skeleton-with-pi
+second_try
+bibfs_cuda_only.o

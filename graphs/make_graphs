@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Your Python generator
+GENERATOR="generate_graph.py"
+
+# Desired average degree
+AVG_DEG=2.2000000001
+
+# Source node; leave DST empty so script defaults it to N−1
+SRC=0
+DST=""
+graph_size=("1000,1" "10000,10" "50000,50" "100000,100")
+
+for N in "${graph_size[@]}"; do
+  # p = AVG_DEG / N
+  IFS=',' read -r num label <<< "$N"
+  echo "$num $label"
+  P=$(python3 - <<EOF
+print(${AVG_DEG}/${num})
+EOF
+)
+
+  OUT="${label}k.bin"
+  echo "=== Generating G(${num}, p=${P}) → ${OUT} ==="
+  if [ -n "$DST" ]; then
+    python3 "$GENERATOR" --n "$num" --p "$P" --src "$SRC" --dst "$DST" --out "$OUT"
+  else
+    python3 "$GENERATOR" --n "$num" --p "$P" --src "$SRC" --out "$OUT"
+  fi
+  echo
+done
+
+echo "All done!"

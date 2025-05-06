@@ -10,34 +10,55 @@
     }
 
 // expand one bfs frontier using 32-bit arrays
-__global__ void expand_frontier(
-  int N, const int *row_ptr, const int *col_ind,
-  const int *frontier_in, int *frontier_out,
-  int *visited, unsigned char *changed
-) {
-  int u = blockIdx.x * blockDim.x + threadIdx.x;
-  if(u >= N || frontier_in[u] == 0) return;
-  int start = row_ptr[u], end = row_ptr[u+1];
-  for(int e = start; e < end; ++e) {
-      int v = col_ind[e];
-      // atomically set visited[v] to 1, old value indicates whether it was new
-      if(atomicExch(&visited[v], 1) == 0) {
-          frontier_out[v] = 1;
-          *changed = 1;
-      }
-  }
+    __global__ void expand_frontier(
+    int N, const int *row_ptr, const int *col_ind,
+    const int *frontier_in, int *frontier_out,
+    int *visited, unsigned char *changed
+    ) {
+    int tid_in_block = threadIdx.x;
+    int bid = blockIdx.x;
+    int u = bid * blockDim.x + tid_in_block;
+
+    // log entry for every thread
+    //printf("[expand_frontier] block %2d thread %3d → global %4d\n", bid, tid_in_block, u);
+
+    if(u >= N || frontier_in[u] == 0) {
+        //printf("[expand_frontier] global %4d → skipping (out‐of‐range or not in frontier)\n", u);
+        return;
+    }
+
+    //printf("[expand_frontier] Thread %4d: expanding node %4d\n", u, u);
+    int start = row_ptr[u];
+    int end   = row_ptr[u+1];
+    for(int e = start; e < end; ++e) {
+        int v = col_ind[e];
+        // atomically set visited[v] to 1, old value indicates whether it was new
+        int old = atomicExch(&visited[v], 1);
+        if(old == 0) {
+            frontier_out[v] = 1;
+            *changed = 1;
+            //printf("[expand_frontier] Thread %4d: discovered neighbor %4d\n", u, v);
+        }
+    }
 }
 
-__global__ void check_intersect(
-    int               N,
-    const int        *vis1,
-    const int        *vis2,
-    unsigned char    *found
-) {
-    int u = blockIdx.x * blockDim.x + threadIdx.x;
-    if(u < N && vis1[u] && vis2[u]){
-        *found = 1;
-    }
+    __global__ void check_intersect(
+        int            N,
+        const int     *vis1,
+        const int     *vis2,
+        unsigned char *found
+    ) {
+        int tid = threadIdx.x;
+        int bid = blockIdx.x;
+        int u   = bid * blockDim.x + tid;
+
+        // log entry for every thread
+        //printf("[check_intersect] block %2d thread %3d → checking node %4d\n", bid, tid, u);
+
+        if(u < N && vis1[u] && vis2[u]){
+            //printf("[check_intersect] Thread %4d: intersection FOUND at node %4d\n", u, u);
+            *found = 1;
+        }
 }
 
 int main(int argc, char** argv){
