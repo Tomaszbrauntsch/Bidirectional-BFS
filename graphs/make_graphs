@@ -5,7 +5,7 @@ set -euo pipefail
 GENERATOR="generate_graph.py"
 
 # Desired average degree
-AVG_DEG=10
+AVG_DEG=2.2000000001
 
 # Source node; leave DST empty so script defaults it to N−1
 SRC=0
