@@ -1,182 +1,159 @@
-// comp.cu
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <cstdio>
-
-// Error checking macro
-#define checkCuda(err) \
-  if ((err) != cudaSuccess) { \
-    fprintf(stderr, "CUDA err %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(err)); \
-    exit(-1); \
-  }
-
-// Device‐global data
-static int   N_glob;
-static int   threads_glob, blocks_glob;
-static int  *d_row_ptr, *d_col_ind;
-static int  *d_vis_s, *d_vis_t, *d_front_s, *d_front_t, *d_front_next;
-static int  *d_pred_s, *d_pred_t;
-static unsigned char *d_changed_s, *d_changed_t, *d_intersect;
-// Host pointers (set by gpuSetup)
-static int *h_vis_s, *h_vis_t, *h_front_s, *h_front_t, *h_pred_s, *h_pred_t;
-
-// Kernel: expand one frontier, record predecessors
-__global__ void expand_frontier(
-  int N,
-  const int *row_ptr,
-  const int *col_ind,
-  const int *frontier_in,
-        int *frontier_out,
-        int *visited,
-        unsigned char *changed,
-        int *pred
-) {
-  int u = blockIdx.x * blockDim.x + threadIdx.x;
-  if (u >= N || frontier_in[u] == 0) return;
-  int start = row_ptr[u], end = row_ptr[u+1];
-  for (int e = start; e < end; ++e) {
-    int v = col_ind[e];
-    int old = atomicExch(&visited[v], 1);
-    if (old == 0) {
-      frontier_out[v] = 1;
-      *changed        = 1;
-      pred[v]         = u;
-    }
-  }
-}
-
-// Kernel: detect intersection
-__global__ void check_intersect(
-  int N,
-  const int *vis1,
-  const int *vis2,
-        unsigned char *found
-) {
-  int u = blockIdx.x * blockDim.x + threadIdx.x;
-  if (u < N && vis1[u] && vis2[u]) *found = 1;
-}
+// mpi_bas.cpp
+#include <mpi.h>
+#include <vector>
+#include <fstream>
+#include <iostream>
+#include <algorithm>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" void gpuSetup(
-  int N, int M,
-  int *h_row_ptr, int *h_col_ind,
-  int SRC, int DST,
-  int threads, int blocks,
-  int *hv_s, int *hv_t,
-  int *hf_s, int *hf_t,
-  int *hp_s, int *hp_t
-) {
-  N_glob       = N;
-  threads_glob = threads;
-  blocks_glob  = blocks;
-  h_vis_s   = hv_s;
-  h_vis_t   = hv_t;
-  h_front_s = hf_s;
-  h_front_t = hf_t;
-  h_pred_s  = hp_s;
-  h_pred_t  = hp_t;
+    int, int,
+    int*, int*,
+    int, int,
+    int, int,
+    int*, int*, int*, int*, int*, int*
+);
+extern "C" void gpuIterate(unsigned char*, unsigned char*, unsigned char*);
+extern "C" void gpuCopyHostToDevice();
+extern "C" void gpuFinalize();
 
-  // Allocate CSR on device
-  checkCuda(cudaMalloc(&d_row_ptr, (N+1)*sizeof(int)));
-  checkCuda(cudaMalloc(&d_col_ind, M    *sizeof(int)));
-  checkCuda(cudaMemcpy(d_row_ptr, h_row_ptr, (N+1)*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_col_ind, h_col_ind, M    *sizeof(int), cudaMemcpyHostToDevice));
+int main(int argc, char** argv) {
+  MPI_Init(&argc, &argv);
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  // Allocate BFS arrays
-  #define ALLOC_INT(ptr) checkCuda(cudaMalloc(&ptr, N*sizeof(int)))
-  ALLOC_INT(d_vis_s);
-  ALLOC_INT(d_vis_t);
-  ALLOC_INT(d_front_s);
-  ALLOC_INT(d_front_t);
-  ALLOC_INT(d_front_next);
-  ALLOC_INT(d_pred_s);
-  ALLOC_INT(d_pred_t);
-  #undef ALLOC_INT
-  checkCuda(cudaMalloc(&d_changed_s,  sizeof(unsigned char)));
-  checkCuda(cudaMalloc(&d_changed_t,  sizeof(unsigned char)));
-  checkCuda(cudaMalloc(&d_intersect,  sizeof(unsigned char)));
+  if (argc != 4) {
+    if (rank == 0)
+      std::cerr << "Usage: mpirun -n <p> ./mpi_bibfs <graph.bin> <src> <dst>\n";
+    MPI_Finalize();
+    return 1;
+  }
 
-  // Initialize device arrays from host
-  checkCuda(cudaMemcpy(d_vis_s,   h_vis_s,   N*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_vis_t,   h_vis_t,   N*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_front_s, h_front_s, N*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_front_t, h_front_t, N*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_pred_s,  h_pred_s,  N*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_pred_t,  h_pred_t,  N*sizeof(int), cudaMemcpyHostToDevice));
-}
+  const char* filename = argv[1];
+  int SRC = std::atoi(argv[2]);
+  int DST = std::atoi(argv[3]);
 
-extern "C" void gpuIterate(
-  unsigned char *schg,
-  unsigned char *tchg,
-  unsigned char *inter
-) {
-  unsigned char zero = 0;
-  // Reset change flags
-  checkCuda(cudaMemcpy(d_changed_s, &zero, 1, cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_changed_t, &zero, 1, cudaMemcpyHostToDevice));
+  // ─── Read graph header + edges on rank 0 ───────────────────────────────
+  uint32_t N = 0, M = 0;
+  std::vector<uint32_t> flat;
+  if (rank == 0) {
+    std::ifstream in(filename, std::ios::binary);
+    if (!in) {
+      std::cerr << "Cannot open " << filename << "\n";
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    in.read(reinterpret_cast<char*>(&N), sizeof(uint32_t));
+    in.read(reinterpret_cast<char*>(&M), sizeof(uint32_t));
+    flat.resize(2 * M);
+    in.read(reinterpret_cast<char*>(flat.data()), flat.size() * sizeof(uint32_t));
+  }
+  // ─── Broadcast N, M, then flat edges to all ranks ───────────────────────
+  MPI_Bcast(&N, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&M, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+  if (rank != 0) flat.resize(2 * M);
+  MPI_Bcast(flat.data(), flat.size(), MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
-  // Expand source side
-  checkCuda(cudaMemset(d_front_next, 0, N_glob*sizeof(int)));
-  expand_frontier<<<blocks_glob,threads_glob>>>(
-    N_glob, d_row_ptr, d_col_ind,
-    d_front_s, d_front_next,
-    d_vis_s,   d_changed_s,
-    d_pred_s
+  // ─── Build CSR on every rank ────────────────────────────────────────────
+  std::vector<int> deg(N, 0);
+  for (size_t i = 0; i < flat.size(); i += 2) {
+    deg[flat[i]]++;
+  }
+  std::vector<int> row_ptr(N+1, 0);
+  for (int i = 0; i < (int)N; i++) {
+    row_ptr[i+1] = row_ptr[i] + deg[i];
+  }
+  std::vector<int> col_ind(2*M), cur = row_ptr;
+  for (size_t i = 0; i < flat.size(); i += 2) {
+    int u = flat[i], v = flat[i+1];
+    col_ind[cur[u]++] = v;
+  }
+
+  // ─── Initialize host-side BFS arrays ──────────────────────────────────
+  std::vector<int> h_vis_s(N,0), h_vis_t(N,0);
+  std::vector<int> h_front_s(N,0), h_front_t(N,0);
+  std::vector<int> h_pred_s(N,-1), h_pred_t(N,-1);
+  h_vis_s[SRC] = 1; h_front_s[SRC] = 1; h_pred_s[SRC] = SRC;
+  h_vis_t[DST] = 1; h_front_t[DST] = 1; h_pred_t[DST] = DST;
+
+  int threads = 256;
+  int blocks  = (N + threads - 1) / threads;
+
+  // ─── Hand off to GPU setup ─────────────────────────────────────────────
+  gpuSetup(
+    N, 2*M,
+    row_ptr.data(), col_ind.data(),
+    SRC, DST,
+    threads, blocks,
+    h_vis_s.data(), h_vis_t.data(),
+    h_front_s.data(), h_front_t.data(),
+    h_pred_s.data(), h_pred_t.data()
   );
-  checkCuda(cudaGetLastError());
-  checkCuda(cudaDeviceSynchronize());
-  checkCuda(cudaMemcpy(d_front_s, d_front_next, N_glob*sizeof(int), cudaMemcpyDeviceToDevice));
 
-  // Expand target side
-  checkCuda(cudaMemset(d_front_next, 0, N_glob*sizeof(int)));
-  expand_frontier<<<blocks_glob,threads_glob>>>(
-    N_glob, d_row_ptr, d_col_ind,
-    d_front_t, d_front_next,
-    d_vis_t,   d_changed_t,
-    d_pred_t
-  );
-  checkCuda(cudaGetLastError());
-  checkCuda(cudaDeviceSynchronize());
-  checkCuda(cudaMemcpy(d_front_t, d_front_next, N_glob*sizeof(int), cudaMemcpyDeviceToDevice));
+  // ─── Time the bidirectional BFS ────────────────────────────────────────
+  MPI_Barrier(MPI_COMM_WORLD);
+  double t_start = MPI_Wtime();
 
-  // Copy device → host
-  checkCuda(cudaMemcpy(h_vis_s,   d_vis_s,   N_glob*sizeof(int), cudaMemcpyDeviceToHost));
-  checkCuda(cudaMemcpy(h_vis_t,   d_vis_t,   N_glob*sizeof(int), cudaMemcpyDeviceToHost));
-  checkCuda(cudaMemcpy(h_front_s, d_front_s, N_glob*sizeof(int), cudaMemcpyDeviceToHost));
-  checkCuda(cudaMemcpy(h_front_t, d_front_t, N_glob*sizeof(int), cudaMemcpyDeviceToHost));
-  checkCuda(cudaMemcpy(h_pred_s,  d_pred_s,  N_glob*sizeof(int), cudaMemcpyDeviceToHost));
-  checkCuda(cudaMemcpy(h_pred_t,  d_pred_t,  N_glob*sizeof(int), cudaMemcpyDeviceToHost));
+  bool global_hit = false;
+  while (!global_hit) {
+    unsigned char schg, tchg, inter;
+    gpuIterate(&schg, &tchg, &inter);
 
-  // Copy change flags
-  checkCuda(cudaMemcpy(schg, d_changed_s, 1, cudaMemcpyDeviceToHost));
-  checkCuda(cudaMemcpy(tchg, d_changed_t, 1, cudaMemcpyDeviceToHost));
+    // 1) Merge visited/frontiers/preds across ranks
+    MPI_Allreduce(MPI_IN_PLACE, h_vis_s.data(),   N, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, h_vis_t.data(),   N, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, h_front_s.data(), N, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, h_front_t.data(), N, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, h_pred_s.data(),  N, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, h_pred_t.data(),  N, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
-  // Detect intersection
-  checkCuda(cudaMemset(d_intersect, 0, 1));
-  check_intersect<<<blocks_glob,threads_glob>>>(N_glob, d_vis_s, d_vis_t, d_intersect);
-  checkCuda(cudaDeviceSynchronize());
-  checkCuda(cudaMemcpy(inter, d_intersect, 1, cudaMemcpyDeviceToHost));
-}
+    // 2) Copy merged state back to device
+    gpuCopyHostToDevice();
 
-extern "C" void gpuCopyHostToDevice() {
-  checkCuda(cudaMemcpy(d_vis_s,   h_vis_s,   N_glob*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_vis_t,   h_vis_t,   N_glob*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_front_s, h_front_s, N_glob*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_front_t, h_front_t, N_glob*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_pred_s,  h_pred_s,  N_glob*sizeof(int), cudaMemcpyHostToDevice));
-  checkCuda(cudaMemcpy(d_pred_t,  h_pred_t,  N_glob*sizeof(int), cudaMemcpyHostToDevice));
-}
+    // 3) Check for intersection (global)
+    int local_hit = inter ? 1 : 0;
+    MPI_Allreduce(&local_hit, &global_hit, 1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
+    if (global_hit) break;
 
-extern "C" void gpuFinalize() {
-  cudaFree(d_row_ptr);
-  cudaFree(d_col_ind);
-  cudaFree(d_vis_s);
-  cudaFree(d_vis_t);
-  cudaFree(d_front_s);
-  cudaFree(d_front_t);
-  cudaFree(d_front_next);
-  cudaFree(d_pred_s);
-  cudaFree(d_pred_t);
-  cudaFree(d_changed_s);
-  cudaFree(d_changed_t);
-  cudaFree(d_intersect);
+    // 4) Check if any rank made progress
+    int local_change = (schg || tchg) ? 1 : 0;
+    int global_change;
+    MPI_Allreduce(&local_change, &global_change, 1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
+    if (!global_change) break;
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  double t_end = MPI_Wtime();
+
+  // ─── Rank 0 prints results ─────────────────────────────────────────────
+  if (rank == 0) {
+    std::cout << "Running with " << size << " ranks\n";
+    std::cout << "Search time: " << (t_end - t_start) << " seconds\n";
+
+    int meet = -1;
+    for (int i = 0; i < (int)h_vis_s.size(); i++) {
+      if (h_vis_s[i] && h_vis_t[i]) { meet = i; break; }
+    }
+    if (meet < 0) {
+      std::cout << "No path found\n";
+    } else {
+      std::vector<int> path;
+      for (int x = meet; x != SRC; x = h_pred_s[x]) path.push_back(x);
+      path.push_back(SRC);
+      std::reverse(path.begin(), path.end());
+      int cur = meet;
+      while (cur != DST) {
+        cur = h_pred_t[cur];
+        path.push_back(cur);
+      }
+      std::cout << "Path:";
+      for (auto v : path) std::cout << " " << v;
+      std::cout << "\n";
+    }
+  }
+
+  gpuFinalize();
+  MPI_Finalize();
+  return 0;
 }
