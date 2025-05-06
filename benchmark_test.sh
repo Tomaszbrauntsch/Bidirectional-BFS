@@ -2,13 +2,12 @@
 set -euo pipefail
 
 # Configuration
-GRAPH_DIR="../graphs"            # relative when inside vN/
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GRAPH_DIR="$PROJECT_ROOT/graphs"
 GRAPHS=(1k.bin 10k.bin 50k.bin 100k.bin)
 SRC=0
 NP=4
-HOSTFILE="host_file"             # used only for MPI versions
 
-# Which versions and what binaries they produce
 VERSIONS=(v1 v2 v3 v4)
 declare -A EXE_NAME=(
   [v1]="bibfs_serial"
@@ -23,15 +22,16 @@ declare -A USE_MPI=(
   [v4]=true
 )
 
-OUTFILE="benchmark_results.csv"
-echo "version,graph,time_sec" > "$OUTFILE"
+OUTFILE="$PROJECT_ROOT/benchmark_results.csv"
+echo "version,graph,time_sec,logfile" > "$OUTFILE"
 
 for ver in "${VERSIONS[@]}"; do
+  VDIR="$PROJECT_ROOT/$ver"
   echo
   echo "========== Processing $ver =========="
-  pushd "$ver" >/dev/null
+  pushd "$VDIR" >/dev/null
 
-    # 1) build
+    # build
     echo "--> make clean && make in $ver"
     make clean
     make
@@ -43,30 +43,37 @@ for ver in "${VERSIONS[@]}"; do
       exit 1
     fi
 
-    # 2) run on each graph
+    # ensure logs/ exists
+    mkdir -p logs
+
     for g in "${GRAPHS[@]}"; do
-      # derive dst: 1k->999, 10k->9999, etc.
       num=${g%k.bin}
       DST=$(( num * 1000 - 1 ))
 
-      echo "--> $ver on $g (src=$SRC dst=$DST)"
+      LOGFILE="logs/${g%.bin}.log"
+      echo "--> $ver on $g (src=$SRC dst=$DST) → $LOGFILE"
 
       if ${USE_MPI[$ver]}; then
-        cmd=( mpirun -n $NP -hostfile "$HOSTFILE" "$EXE" "$GRAPH_DIR/$g" "$SRC" "$DST" )
+        cmd=( mpirun -n $NP "$EXE" "$GRAPH_DIR/$g" "$SRC" "$DST" )
       else
         cmd=( "$EXE" "$GRAPH_DIR/$g" "$SRC" "$DST" )
       fi
 
-      # run & capture
-      OUTPUT=$("${cmd[@]}" 2>&1)
+      # run & save everything to the per-run log
+      "${cmd[@]}" &> "$LOGFILE"
 
-      # extract time (looks for "Search time:" or "[Time]")
-      TIME=$(echo "$OUTPUT" | \
-        awk 'BEGIN{IGNORECASE=1} /search time|^\[time\]/{for(i=1;i<=NF;i++) if ($i ~ /^[0-9]+\.[0-9]+$/){print $i; exit}}'
+      # extract time from that log
+      TIME=$(awk 'BEGIN{IGNORECASE=1}
+        /search time|^\[time\]/{ 
+          for(i=1;i<=NF;i++) 
+            if ($i ~ /^[0-9]*\.[0-9]+$/){ print $i; exit }
+        }' "$LOGFILE"
       )
       TIME=${TIME:-NA}
 
-      echo "$ver,$g,$TIME" >> "../$OUTFILE"
+      # append to CSV (logfile path relative to project root)
+      RELLOG="${ver}/${LOGFILE}"
+      echo "$ver,$g,$TIME,$RELLOG" >> "$OUTFILE"
     done
 
   popd >/dev/null
