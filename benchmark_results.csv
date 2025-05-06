@@ -1,0 +1,17 @@
+version,graph,time_sec,logfile
+v1,1k.bin,NA,v1/logs/v1_1k.log
+v1,10k.bin,NA,v1/logs/v1_10k.log
+v1,50k.bin,NA,v1/logs/v1_50k.log
+v1,100k.bin,NA,v1/logs/v1_100k.log
+v2,1k.bin,NA,v2/logs/v2_1k.log
+v2,10k.bin,NA,v2/logs/v2_10k.log
+v2,50k.bin,0.00140414,v2/logs/v2_50k.log
+v2,100k.bin,0.00548612,v2/logs/v2_100k.log
+v3,1k.bin,NA,v3/logs/v3_1k.log
+v3,10k.bin,NA,v3/logs/v3_10k.log
+v3,50k.bin,NA,v3/logs/v3_50k.log
+v3,100k.bin,NA,v3/logs/v3_100k.log
+v4,1k.bin,0.0396688,v4/logs/v4_1k.log
+v4,10k.bin,0.197767,v4/logs/v4_10k.log
+v4,50k.bin,0.121804,v4/logs/v4_50k.log
+v4,100k.bin,0.124773,v4/logs/v4_100k.log

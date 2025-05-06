@@ -20,14 +20,14 @@
     int u = bid * blockDim.x + tid_in_block;
 
     // log entry for every thread
-    printf("[expand_frontier] block %2d thread %3d → global %4d\n", bid, tid_in_block, u);
+    //printf("[expand_frontier] block %2d thread %3d → global %4d\n", bid, tid_in_block, u);
 
     if(u >= N || frontier_in[u] == 0) {
-        printf("[expand_frontier] global %4d → skipping (out‐of‐range or not in frontier)\n", u);
+        //printf("[expand_frontier] global %4d → skipping (out‐of‐range or not in frontier)\n", u);
         return;
     }
 
-    printf("[expand_frontier] Thread %4d: expanding node %4d\n", u, u);
+    //printf("[expand_frontier] Thread %4d: expanding node %4d\n", u, u);
     int start = row_ptr[u];
     int end   = row_ptr[u+1];
     for(int e = start; e < end; ++e) {
@@ -37,7 +37,7 @@
         if(old == 0) {
             frontier_out[v] = 1;
             *changed = 1;
-            printf("[expand_frontier] Thread %4d: discovered neighbor %4d\n", u, v);
+            //printf("[expand_frontier] Thread %4d: discovered neighbor %4d\n", u, v);
         }
     }
 }
@@ -53,10 +53,10 @@
         int u   = bid * blockDim.x + tid;
 
         // log entry for every thread
-        printf("[check_intersect] block %2d thread %3d → checking node %4d\n", bid, tid, u);
+        //printf("[check_intersect] block %2d thread %3d → checking node %4d\n", bid, tid, u);
 
         if(u < N && vis1[u] && vis2[u]){
-            printf("[check_intersect] Thread %4d: intersection FOUND at node %4d\n", u, u);
+            //printf("[check_intersect] Thread %4d: intersection FOUND at node %4d\n", u, u);
             *found = 1;
         }
 }
