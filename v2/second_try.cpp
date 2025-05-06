@@ -74,6 +74,49 @@ int main(int argc, char* argv[]){
         }
         bool expandSrc = (cntS <= cntD);
 
+        // Inserted inside the main while(!found) loop — right before or after the for loop over u
+std::vector<int> visited_this_round;
+
+for(uint32_t u = rank; u < n; u += size){
+    uint64_t mask_u = 1ULL << (u & 63);
+    if(expandSrc) {
+        if(frontierSrc[u>>6] & mask_u) {
+            visited_this_round.push_back(u); // track which node was visited
+            for(int v: adj[u]){
+                uint64_t m_v = 1ULL << (v & 63);
+                if(!(visitedSrc[v>>6] & m_v)){
+                    visitedSrc[v>>6] |= m_v;
+                    nextF      [v>>6] |= m_v;
+                }
+            }
+        }
+    } else {
+        if(frontierDst[u>>6] & mask_u) {
+            visited_this_round.push_back(u); // track which node was visited
+            for(int v: adj[u]){
+                uint64_t m_v = 1ULL << (v & 63);
+                if(!(visitedDst[v>>6] & m_v)){
+                    visitedDst[v>>6] |= m_v;
+                    nextF      [v>>6] |= m_v;
+                }
+            }
+        }
+    }
+}
+
+// Synchronize ranks before printing
+MPI_Barrier(MPI_COMM_WORLD);
+for(int r = 0; r < size; r++) {
+    if(rank == r) {
+        std::cout << "[Rank " << rank << "] Distance level " << distance << " expanded nodes:";
+        for(int u : visited_this_round)
+            std::cout << " " << u;
+        std::cout << std::endl;
+    }
+    MPI_Barrier(MPI_COMM_WORLD); // sync before next rank prints
+}
+
+
         for(uint32_t u = rank; u < n; u += size){
             uint64_t mask_u = 1ULL << (u & 63);
             if(expandSrc) {
