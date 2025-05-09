@@ -11,7 +11,7 @@ NP=4
 VERSIONS=(v1 v2 v3 v4)
 declare -A EXE_NAME=(
   [v1]="bibfs_serial"
-  [v2]="mpi_bibfs_bitset"
+  [v2]="second_try"
   [v3]="bibfs_cuda_only"
   [v4]="mpi_bibfs"
 )
