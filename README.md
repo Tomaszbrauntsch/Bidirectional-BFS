@@ -1,6 +1,7 @@
 # Bidirectional-BFS
 Made by Hamdi Korreshi and Tomasz Brauntsch
-Utilizing CUDA and MPI to perform bidirectional BFS on a cluster of two machines, to find the shortest path between two the source and destination nodes. We use 0 (src) and (dst) n-1 to make the scripting easier, but I have confirmed that other node options work. Make sure to download the requirements.txt to download the libraries needed.
+Utilizing CUDA and MPI to perform bidirectional BFS on a cluster of two machines, to find the shortest path between two the source and destination nodes. We use 0 (src) and (dst) n-1 to make the scripting easier, but I have confirmed that other node options work. Make sure to download the requirements.txt to download the libraries needed for generating the graphs. Use ./make_graphs to generate new untested version of the graph. Use the make run command to run a small test. Or use the benchmark_test script to run all four versions.
+ 
 # V1 - Serial
 The serial version is a baseline for this project to see how much faster the Bi-BFS went. (Spoiler Serial is the best currently)
 
