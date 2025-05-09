@@ -24,8 +24,6 @@ int main(int argc, char* argv[]){
   const char* filename = argv[1];
   int src = std::atoi(argv[2]);
   int dst = std::atoi(argv[3]);
-
-  // 1) Read & broadcast CSR and edge‐list
   uint32_t N, M;
   std::vector<uint32_t> flat;
   if (rank == 0) {
@@ -41,7 +39,6 @@ int main(int argc, char* argv[]){
   if (rank != 0) flat.resize(2*M);
   MPI_Bcast(flat.data(), 2*M, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
-  // 2) Build CSR host‐side
   std::vector<int> deg(N,0), row_ptr(N+1,0), col_ind(2*M);
   for (size_t i = 0; i < 2*M; i += 2) {
     deg[flat[i]]++;
@@ -55,19 +52,15 @@ int main(int argc, char* argv[]){
     col_ind[cur[v]++] = u;
   }
 
-  // 2b) ALSO build an adjacency list for host‐side path recovery
   std::vector<std::vector<int>> adj(N);
   for (size_t i = 0; i < 2*M; i += 2) {
     int u = flat[i], v = flat[i+1];
     adj[u].push_back(v);
     adj[v].push_back(u);
   }
-
-  // 3) Upload graph + seed both frontiers on GPU
   cudaInitGraph(N, M, row_ptr.data(), col_ind.data());
   cudaInitFrontiers(src, dst);
 
-  // 4) Host buffers (int!)
   std::vector<int> front_s(N,0), front_t(N,0), nextF(N,0), vis_s(N,0), vis_t(N,0);
   front_s[src] = vis_s[src] = 1;
   front_t[dst] = vis_t[dst] = 1;
@@ -76,9 +69,8 @@ int main(int argc, char* argv[]){
   bool found = false;
   double t0 = MPI_Wtime();
 
-  // 5) Bidirectional BFS loop
   while (!found) {
-    // a) local intersection test
+    // local intersection test
     for (int i = 0; i < (int)N; i++) {
       if (vis_s[i] && vis_t[i]) { found = true; break; }
     }
@@ -87,12 +79,12 @@ int main(int argc, char* argv[]){
     found = global_hit;
     if (found) break;
 
-    // b) pick smaller frontier
+    // pick smaller frontier
     int cntS = std::count(front_s.begin(), front_s.end(), 1);
     int cntT = std::count(front_t.begin(), front_t.end(), 1);
     bool expandSrc = (cntS <= cntT);
 
-    // c) expand on GPU
+    // expand on GPU
     unsigned char changed = 0;
     if (expandSrc) {
       cudaExpandFrontier(0, front_s.data(), nextF.data(), vis_s.data(), &changed, N);
@@ -100,10 +92,8 @@ int main(int argc, char* argv[]){
       cudaExpandFrontier(1, front_t.data(), nextF.data(), vis_t.data(), &changed, N);
     }
 
-    // d) merge nextF across ranks
+    // merge nextF across ranks
     MPI_Allreduce(MPI_IN_PLACE, nextF.data(), N, MPI_INT, MPI_BOR, MPI_COMM_WORLD);
-
-    // e) update visited & frontier arrays
     if (expandSrc) {
       for (int i = 0; i < (int)N; i++)
         if (nextF[i] && !vis_s[i]) vis_s[i] = 1;
@@ -115,7 +105,7 @@ int main(int argc, char* argv[]){
     }
     std::fill(nextF.begin(), nextF.end(), 0);
 
-    // f) re‐seed GPU for next iteration
+    // re‐seed GPU for next iteration
     cudaInitFrontiers(src, dst);
 
     distance++;

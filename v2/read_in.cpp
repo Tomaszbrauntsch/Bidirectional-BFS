@@ -20,13 +20,9 @@ int main() {
                   << " bytes, but file is " << file_size << " bytes.\n";
         return 1;
     }
-
     std::vector<uint8_t> buf(n * n);
     in.read(reinterpret_cast<char*>(buf.data()), buf.size());
-
     if (!in) { std::cerr << "Unexpected EOF while reading matrix\n"; return 1; }
-
-    // Success ─ print matrix
     for (uint32_t i = 0; i < n; ++i) {
         for (uint32_t j = 0; j < n; ++j) {
             std::cout << int(buf[i*n + j]) << (j + 1 == n ? '\n' : ' ');

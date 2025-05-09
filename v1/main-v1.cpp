@@ -18,8 +18,6 @@ int main(int argc, char* argv[]) {
     const char* filename = argv[1];
     int src = std::atoi(argv[2]);
     int dst = std::atoi(argv[3]);
-
-    // ─── 1) Read edge list ────────────────────────────────────────────────
     std::ifstream in(filename, std::ios::binary);
     if (!in) {
         std::cerr << "Cannot open " << filename << "\n";
@@ -34,16 +32,12 @@ int main(int argc, char* argv[]) {
         std::cerr << "Unexpected EOF reading edges\n";
         return 1;
     }
-
-    // ─── 2) Build adjacency list ─────────────────────────────────────────
     std::vector<std::vector<int>> adj(n);
     for (uint32_t i = 0; i < 2*m; i += 2) {
         int u = edges[i], v = edges[i+1];
         adj[u].push_back(v);
         adj[v].push_back(u);
     }
-
-    // ─── 3) Prepare bidirectional BFS ────────────────────────────────────
     std::vector<char> visitedSrc(n, 0), visitedDst(n, 0);
     std::vector<int>  parentSrc(n, -1), parentDst(n, -1);
     std::vector<int>  frontierSrc, frontierDst, nextFrontier;
@@ -52,8 +46,6 @@ int main(int argc, char* argv[]) {
     visitedDst[dst] = 1; frontierDst.push_back(dst);
 
     int meet = -1;
-
-    // ─── 4) Run & time the search ────────────────────────────────────────
     auto t0 = std::chrono::steady_clock::now();
     while (meet == -1 && !frontierSrc.empty() && !frontierDst.empty()) {
         bool expandSrc = frontierSrc.size() <= frontierDst.size();
@@ -88,28 +80,19 @@ int main(int argc, char* argv[]) {
         }
     }
     auto t1 = std::chrono::steady_clock::now();
-
-    // ─── 5) Output result & reconstruct path ─────────────────────────────
     if (meet == -1) {
         std::cout << "No path found between " << src << " and " << dst << "\n";
     } else {
-        // backtrack src <- meet
         std::vector<int> rev1;
         for (int cur = meet; cur != -1; cur = parentSrc[cur])
             rev1.push_back(cur);
-        // backtrack dst <- meet
         std::vector<int> rev2;
         for (int cur = meet; cur != -1; cur = parentDst[cur])
             rev2.push_back(cur);
-
-        // print hop count
         int hops = (int)rev1.size() - 1 + ((int)rev2.size() - 1);
         std::cout << "Shortest path length = " << hops << "\nPath: ";
-
-        // print rev1 in reverse (src→meet)
         for (int i = (int)rev1.size() - 1; i >= 0; --i)
             std::cout << rev1[i] << ' ';
-        // print rev2 skipping the first element (meet→dst)
         for (size_t i = 1; i < rev2.size(); ++i)
             std::cout << rev2[i] << (i+1<rev2.size() ? ' ' : '\n');
     }

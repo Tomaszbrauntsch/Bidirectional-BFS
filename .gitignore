@@ -22,3 +22,5 @@ mpi-and-cuda
 cuda-skeleton-with-pi
 second_try
 bibfs_cuda_only.o
+*.log
+*.o

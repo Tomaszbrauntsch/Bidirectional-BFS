@@ -1,0 +1,20 @@
++---------+----------+------------+------------------+
+| version | graph    | time_sec   | logfile          |
++---------+----------+------------+------------------+
+| v1      | 1k.bin   | 3.256e-06  | v1/logs/1k.log   |
+| v1      | 10k.bin  | 8.596e-06  | v1/logs/10k.log  |
+| v1      | 50k.bin  | 7.0422e-05 | v1/logs/50k.log  |
+| v1      | 100k.bin | 7.6113e-05 | v1/logs/100k.log |
+| v2      | 1k.bin   | 2.9004e-05 | v2/logs/1k.log   |
+| v2      | 10k.bin  | 7.2757e-05 | v2/logs/10k.log  |
+| v2      | 50k.bin  | 0.00246801 | v2/logs/50k.log  |
+| v2      | 100k.bin | 0.00461131 | v2/logs/100k.log |
+| v3      | 1k.bin   | 0.958848   | v3/logs/1k.log   |
+| v3      | 10k.bin  | 2.555072   | v3/logs/10k.log  |
+| v3      | 50k.bin  | 1.323808   | v3/logs/50k.log  |
+| v3      | 100k.bin | 1.298464   | v3/logs/100k.log |
+| v4      | 1k.bin   | 0.0175496  | v4/logs/1k.log   |
+| v4      | 10k.bin  | 0.0308359  | v4/logs/10k.log  |
+| v4      | 50k.bin  | 0.065055   | v4/logs/50k.log  |
+| v4      | 100k.bin | 0.0820099  | v4/logs/100k.log |
++---------+----------+------------+------------------+

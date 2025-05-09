@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Configuration
+# === CONFIGURATION ===
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GRAPH_DIR="$PROJECT_ROOT/graphs"
 GRAPHS=(1k.bin 10k.bin 50k.bin 100k.bin)
@@ -23,33 +23,24 @@ declare -A USE_MPI=(
 )
 
 OUTFILE="$PROJECT_ROOT/benchmark_results.csv"
+TABLEFILE="$PROJECT_ROOT/benchmark_table.txt"
 echo "version,graph,time_sec,logfile" > "$OUTFILE"
 
+# === RUN BENCHMARKS ===
 for ver in "${VERSIONS[@]}"; do
   VDIR="$PROJECT_ROOT/$ver"
   echo
   echo "========== Processing $ver =========="
   pushd "$VDIR" >/dev/null
 
-    # build
-    echo "--> make clean && make in $ver"
-    make clean
-    make
+    make clean && make
 
     EXE="./${EXE_NAME[$ver]}"
-    if [[ ! -x "$EXE" ]]; then
-      echo "ERROR: executable $EXE not found in $ver" >&2
-      popd >/dev/null
-      exit 1
-    fi
+    [[ -x "$EXE" ]] || { echo "ERROR: $EXE not found"; exit 1; }
 
-    # ensure logs/ exists
     mkdir -p logs
-
     for g in "${GRAPHS[@]}"; do
-      num=${g%k.bin}
-      DST=$(( num * 1000 - 1 ))
-
+      num=${g%k.bin}; DST=$(( num*1000 - 1 ))
       LOGFILE="logs/${g%.bin}.log"
       echo "--> $ver on $g (src=$SRC dst=$DST) → $LOGFILE"
 
@@ -59,25 +50,75 @@ for ver in "${VERSIONS[@]}"; do
         cmd=( "$EXE" "$GRAPH_DIR/$g" "$SRC" "$DST" )
       fi
 
-      # run & save everything to the per-run log
+      # run & capture all output
       "${cmd[@]}" &> "$LOGFILE"
 
-      # extract time from that log
+      # extract time: handles
+      #  • "Search time: X"
+      #  • "[Time] ... = X s"
+      #  • "took X seconds"
+      #  • "gpu bfs time = X ms"
       TIME=$(awk 'BEGIN{IGNORECASE=1}
-        /search time|^\[time\]/{ 
-          for(i=1;i<=NF;i++) 
-            if ($i ~ /^[0-9]*\.[0-9]+$/){ print $i; exit }
+        /search time|^\[time\]|took[[:space:]]+[0-9]|gpu bfs time/ {
+          for(i=1;i<=NF;i++){
+            if ($i ~ /^[0-9]+(\.[0-9]*)?([eE][+-]?[0-9]+)?$/){
+              print $i; exit
+            }
+          }
         }' "$LOGFILE"
       )
       TIME=${TIME:-NA}
 
-      # append to CSV (logfile path relative to project root)
-      RELLOG="${ver}/${LOGFILE}"
-      echo "$ver,$g,$TIME,$RELLOG" >> "$OUTFILE"
+      echo "$ver,$g,$TIME,$ver/$LOGFILE" >> "$OUTFILE"
     done
 
   popd >/dev/null
 done
 
+# === PRINT & SAVE BOXED TABLE ===
+print_boxed_table(){
+  local rows=()
+  while IFS=, read -r c1 c2 c3 c4; do
+    rows+=("$c1|$c2|$c3|$c4")
+  done < "$OUTFILE"
+
+  # find max widths
+  local w1=0 w2=0 w3=0 w4=0
+  for row in "${rows[@]}"; do
+    IFS='|' read -r a b c d <<< "$row"
+    (( ${#a} > w1 )) && w1=${#a}
+    (( ${#b} > w2 )) && w2=${#b}
+    (( ${#c} > w3 )) && w3=${#c}
+    (( ${#d} > w4 )) && w4=${#d}
+  done
+
+  # build border
+  local border="+"
+  for w in $((w1+2)) $((w2+2)) $((w3+2)) $((w4+2)); do
+    border+=$(printf '%*s' "$w" '' | tr ' ' -)"+"
+  done
+
+  # header
+  echo "$border"
+  IFS='|' read -r h1 h2 h3 h4 <<< "${rows[0]}"
+  printf "| %-${w1}s | %-${w2}s | %-${w3}s | %-${w4}s |\n" \
+         "$h1" "$h2" "$h3" "$h4"
+  echo "$border"
+
+  # data rows
+  for ((i=1; i<${#rows[@]}; i++)); do
+    IFS='|' read -r a b c d <<< "${rows[i]}"
+    printf "| %-${w1}s | %-${w2}s | %-${w3}s | %-${w4}s |\n" \
+           "$a" "$b" "$c" "$d"
+  done
+  echo "$border"
+}
+
 echo
-echo "🏁 Done. Results in $OUTFILE"
+echo "🏁 Benchmark complete."
+echo "CSV → $OUTFILE"
+echo "Table → $TABLEFILE"
+echo
+
+# print to both stdout and table file
+print_boxed_table | tee "$TABLEFILE"

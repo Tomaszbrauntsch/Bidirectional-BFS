@@ -69,8 +69,6 @@ int main(int argc, char** argv){
     const char* path = argv[1];
     int SRC = atoi(argv[2]);
     int DST = atoi(argv[3]);
-
-    // read the graph, has to be binary for it for bigger graphs
     FILE* f = fopen(path, "rb");
     if(!f){ perror("fopen"); return 1; }
     unsigned int N, M;
@@ -128,8 +126,6 @@ int main(int argc, char** argv){
     printf("DEBUG: CPU BFS found? %s, visited %zu nodes\n", cpu_found?"YES":"NO", queue.size());
 
     edges.clear(); deg.clear(); cursor.clear();
-
-    // copy csr to the cuda
     int *d_row_ptr, *d_col_ind;
     checkCuda(cudaMalloc(&d_row_ptr, (N+1) * sizeof(int)));
     checkCuda(cudaMalloc(&d_col_ind, col_ind.size() * sizeof(int)));
@@ -154,18 +150,14 @@ int main(int argc, char** argv){
     cudaMemset(d_front_t,    0, N * sizeof(int));
     cudaMemset(d_front_next, 0, N * sizeof(int));
     cudaMemset(d_intersect,  0, sizeof(unsigned char));
-
-    // mark src and dst
     int one = 1;
     checkCuda(cudaMemcpy(d_vis_s + SRC,   &one, sizeof(int), cudaMemcpyHostToDevice));
     checkCuda(cudaMemcpy(d_front_s + SRC, &one, sizeof(int), cudaMemcpyHostToDevice));
     checkCuda(cudaMemcpy(d_vis_t + DST,   &one, sizeof(int), cudaMemcpyHostToDevice));
     checkCuda(cudaMemcpy(d_front_t + DST, &one, sizeof(int), cudaMemcpyHostToDevice));
-
     int threads = 256;
     int blocks  = (N + threads - 1) / threads;
     bool found = false;
-
     // std::vector<int> f_s(N), f_t(N);
     // cudaMemcpy(f_s.data(), d_front_s, N * sizeof(int), cudaMemcpyDeviceToHost);
     // cudaMemcpy(f_t.data(), d_front_t, N * sizeof(int), cudaMemcpyDeviceToHost);

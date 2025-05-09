@@ -3,7 +3,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-// simple CUDA error checker
 #define checkCuda(err)                                                     \
   if ((err) != cudaSuccess) {                                              \
     fprintf(stderr, "CUDA error %s:%d: %s\n", __FILE__, __LINE__,          \
@@ -11,7 +10,6 @@
     exit(-1);                                                               \
   }
 
-// device pointers
 static int *d_row_ptr, *d_col_ind;
 static int *d_vis_s, *d_vis_t;
 static int *d_front_s, *d_front_t;
@@ -26,8 +24,7 @@ __global__ void expand_frontier_kernel(
     int *visited, unsigned char *changed)
 {
   int u = blockIdx.x * blockDim.x + threadIdx.x;
-  // strided partition
-  if (u >= N || (u % size) != rank || frontier_in[u] == 0) return;
+  if (u >= N || (u % size) != rank || frontier_in[u] == 0) return;   // strided partition
   int start = row_ptr[u], end = row_ptr[u+1];
   for (int e = start; e < end; ++e) {
     int v = col_ind[e];
@@ -40,7 +37,6 @@ __global__ void expand_frontier_kernel(
   }
 }
 
-// detect any overlap in visited arrays
 __global__ void check_intersect_kernel(
     int N, const int *vis1, const int *vis2, unsigned char *found)
 {
@@ -58,25 +54,18 @@ void cudaInitGraph(int N, int M,
          ci_bytes = (2*M) * sizeof(int),
          nv_bytes = N * sizeof(int);
 
-  // copy CSR
   checkCuda(cudaMalloc(&d_row_ptr, rp_bytes));
   checkCuda(cudaMalloc(&d_col_ind, ci_bytes));
   checkCuda(cudaMemcpy(d_row_ptr, h_row_ptr, rp_bytes, cudaMemcpyHostToDevice));
   checkCuda(cudaMemcpy(d_col_ind, h_col_ind, ci_bytes, cudaMemcpyHostToDevice));
-
-  // allocate int arrays for BFS
   checkCuda(cudaMalloc(&d_vis_s, nv_bytes));
   checkCuda(cudaMalloc(&d_vis_t, nv_bytes));
   checkCuda(cudaMalloc(&d_front_s, nv_bytes));
   checkCuda(cudaMalloc(&d_front_t, nv_bytes));
   checkCuda(cudaMalloc(&d_front_next, nv_bytes));
-
-  // allocate single-byte flags
   checkCuda(cudaMalloc(&d_changed_s, 1));
   checkCuda(cudaMalloc(&d_changed_t, 1));
   checkCuda(cudaMalloc(&d_intersect, 1));
-
-  // zero‐initialize
   checkCuda(cudaMemset(d_vis_s, 0, nv_bytes));
   checkCuda(cudaMemset(d_vis_t, 0, nv_bytes));
   checkCuda(cudaMemset(d_front_s, 0, nv_bytes));
@@ -102,13 +91,9 @@ void cudaExpandFrontier(int side,
   int *d_front   = (side == 0 ? d_front_s   : d_front_t);
   int *d_visited = (side == 0 ? d_vis_s     : d_vis_t);
   unsigned char *d_changed = (side == 0 ? d_changed_s : d_changed_t);
-
-  // upload host frontier & clear device buffers
   checkCuda(cudaMemcpy(d_front,        h_front_in,  N * sizeof(int),       cudaMemcpyHostToDevice));
   checkCuda(cudaMemset(d_front_next,   0,           N * sizeof(int)));
   checkCuda(cudaMemset(d_changed,      0,           1));
-
-  // launch kernel (rank=0,size=1 here; MPI driver overrides if needed)
   int threads = 256;
   int blocks  = (N + threads - 1) / threads;
   expand_frontier_kernel<<<blocks, threads>>>(N, 0, 1,
@@ -116,8 +101,6 @@ void cudaExpandFrontier(int side,
                                               d_front, d_front_next,
                                               d_visited, d_changed);
   checkCuda(cudaDeviceSynchronize());
-
-  // download results
   checkCuda(cudaMemcpy(h_front_out, d_front_next, N * sizeof(int),          cudaMemcpyDeviceToHost));
   checkCuda(cudaMemcpy(h_vis,       d_visited,    N * sizeof(int),          cudaMemcpyDeviceToHost));
   checkCuda(cudaMemcpy(h_changed,   d_changed,    sizeof(unsigned char),    cudaMemcpyDeviceToHost));
