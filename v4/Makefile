@@ -61,7 +61,7 @@ $(TARGET): $(CU_OBJ) $(MPI_OBJ)
 
 # 4) Convenience: run with MPI (adjust -n to your process count)
 run: $(TARGET)
-	mpirun -np 6 ./$(TARGET) 1k.bin 0 999	
+	mpirun -np 6 ./$(TARGET) ../graphs/1k.bin 0 999	
 
 clean:
 	rm -f $(CU_OBJ) $(MPI_OBJ) $(TARGET)
