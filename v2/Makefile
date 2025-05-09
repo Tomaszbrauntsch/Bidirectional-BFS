@@ -29,7 +29,7 @@ $(TARGET): $(OBJS)
 
 # Run with 4 ranks (adjust -n, bin-file, src, dst as needed)
 run: all
-	mpirun -np 4 ./$(TARGET) 1k.bin 0 999
+	mpirun -np 4 ./$(TARGET) ../graphs/1k.bin 0 999
 
 # Remove objects and executable
 clean:

@@ -1,9 +1,0 @@
-DEBUG: Node 0 neighbors: 225 274 385 399 778 902
-DEBUG: Node 999 neighbors: 15 72 91 269 305 423 535 637 659 804
-DEBUG: CPU BFS found? YES, visited 895 nodes
-Iter 0: schg=1, tchg=1
-Iter 1: schg=1, tchg=1
-DEBUG: gpu bfs time = 1.000480 ms
-DEBUG: GPU visited_s count = 56
-DEBUG: GPU visited_t count = 98
-GPU BFS: PATH FOUND

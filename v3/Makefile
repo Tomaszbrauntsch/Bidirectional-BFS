@@ -44,7 +44,7 @@ $(TARGET): $(OBJ)
 
 # Run the executable (optional)
 run: $(TARGET)
-	./$(TARGET) 10k.bin 0 9999
+	./$(TARGET) ../graphs/10k.bin 0 9999
 
 # Clean build artifacts
 clean:

@@ -1,3 +1,0 @@
-Shortest path length = 5
-Path: 0 296 1660 7600 5313 9999
-Serial bidirectional BFS took 8.516e-06 seconds
