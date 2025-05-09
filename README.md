@@ -18,7 +18,7 @@ Use this to test, if you don't want to use the script: mpirun -np 4 -hostfile ho
 The TLDR; reason for the parallelized versions being so much slower all comes down to 2 main reasons, graphs are too small and the hardware I used these tests on. A graph of of 10 million node would be better made to show the difference between them, also a path that is in the 4 digits should show completely different results. Thus if you are on the next semester or someone else that wants to try this, DO NOT USE NETWORKX, switch to igraph or gml. They are much better and do not require 900 GBs to generate a a 1 million node graph. We didn't have the best hardware, we were provided 2 laptops with Quadro M1200, but the real problem was the switch. The switch we have is only a 1GB switch which is not able to even handle a 100k node graph properly, so if you want to try something similar get a good switch since the overhead of communication and sending data back and forth is a giant amount.
 
 # File Structure
-.
+```.
 ├── .gitignore
 ├── README.md
 ├── benchmark_results.csv
@@ -75,5 +75,4 @@ The TLDR; reason for the parallelized versions being so much slower all comes do
     ├── m3.py
     ├── main.sh
     └── test.png
-
-12 directories, 44 files
+```
